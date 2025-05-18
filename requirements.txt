@@ -1,0 +1,7 @@
+beautifulsoup4==4.13.4
+pandas==2.2.3
+python-dotenv==1.1.0
+pytrends==4.9.2
+Requests==2.32.3
+selenium==4.32.0
+webdriver_manager==4.0.2

@@ -2,14 +2,18 @@ import re
 import requests
 import time
 import csv
+import os
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
 from urllib.parse import urlparse
+from dotenv import load_dotenv
 
-youtube_api_key = 'AIzaSyA9cN9S5ONp-DDNwyoTmmKHr8DFG5zTqVc'
+load_dotenv()
+
+youtube_api_key = os.getenv("YOUTUBE_API_KEY")
 
 URLS = {
     'Prawo i Sprawiedliwość': {
