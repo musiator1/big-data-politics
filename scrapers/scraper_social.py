@@ -11,7 +11,7 @@ from selenium.webdriver.chrome.options import Options
 from urllib.parse import urlparse
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv("../.env")
 
 youtube_api_key = os.getenv("YOUTUBE_API_KEY")
 
