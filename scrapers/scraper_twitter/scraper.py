@@ -15,19 +15,20 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 class TwitterPoliticalScraper:
     def __init__(self):
-        # ========================= KONFIGURACJA KONTA =========================
+        # ========================= ACCOUNT CONFIG =========================
+
         self.EMAIL = ""
         self.PASSWORD = ""
         self.USERNAME = ""
 
-        # ======================= KONFIGURACJA SCRAPOWANIA ====================
+        # ======================= SCRAPER CONFIG ====================
         # Set this to scan a specific number of days ago (0 = yesterday, 1 = day before yesterday, etc.)
         self.DAYS_AGO = 0  # Change this to debug different days (0=yesterday, 1=2 days ago, etc.)
-        self.MAX_TWEETS_PER_SEARCH = 50  # Increased limit
-        self.MAX_SCROLL_ATTEMPTS = 10  # More scrolling attempts
-        self.SCROLL_PAUSE_TIME = 3  # Longer pause between scrolls
+        self.MAX_TWEETS_PER_SEARCH = 50
+        self.MAX_SCROLL_ATTEMPTS = 10
+        self.SCROLL_PAUSE_TIME = 3
 
-        # ======================== PARTIE POLITYCZNE ==========================
+        # ======================== TAGS ==========================
         self.political_parties = [
             "PiS",
             "Prawo i Sprawiedliwość",
@@ -48,7 +49,6 @@ class TwitterPoliticalScraper:
         self.setup_logging()
 
     def setup_logging(self):
-        """Konfiguracja logowania"""
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
@@ -60,17 +60,15 @@ class TwitterPoliticalScraper:
         self.logger = logging.getLogger(__name__)
 
     def setup_driver(self, headless=True):
-        """Konfiguracja przeglądarki Chrome z ustawieniami angielskimi"""
+        """Set up browser with english language"""
         chrome_options = Options()
 
-        # Podstawowe ustawienia
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)
 
-        # JĘZYK ANGIELSKI - bardzo ważne!
         chrome_options.add_argument("--lang=en-US")
         chrome_options.add_experimental_option('prefs', {
             'intl.accept_languages': 'en-US,en',
@@ -82,16 +80,14 @@ class TwitterPoliticalScraper:
             "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
 
-        # Tryb headless (bez okna przeglądarki)
+        # headless
         if headless:
             chrome_options.add_argument("--headless")
             chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--window-size=1920,1080")
 
-        # Dodatkowe ustawienia dla stabilności
         chrome_options.add_argument("--disable-extensions")
         chrome_options.add_argument("--disable-plugins")
-        # Removed --disable-images to load all content
 
         self.driver = webdriver.Chrome(options=chrome_options)
         self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
@@ -99,15 +95,13 @@ class TwitterPoliticalScraper:
         self.logger.info(f"Przeglądarka uruchomiona (headless: {headless})")
 
     def login_to_twitter(self):
-        """Logowanie do Twittera z obsługą weryfikacji"""
         try:
             self.logger.info("Rozpoczynam logowanie do Twittera...")
 
-            # Idź na stronę logowania z parametrem języka
             self.driver.get("https://twitter.com/i/flow/login?lang=en")
             time.sleep(5)
 
-            # Sprawdź czy strona się załadowała poprawnie
+            # check if the page loaded correctly
             try:
                 WebDriverWait(self.driver, 10).until(
                     EC.presence_of_element_located((By.TAG_NAME, "input"))
@@ -116,7 +110,7 @@ class TwitterPoliticalScraper:
                 self.logger.error("Nie udało się załadować strony logowania")
                 return False
 
-            # Wpisz email
+            # input email
             self.logger.info("Wprowadzam email...")
             try:
                 email_input = WebDriverWait(self.driver, 15).until(
@@ -130,7 +124,7 @@ class TwitterPoliticalScraper:
                 self.logger.error("Nie znaleziono pola email")
                 return False
 
-            # Sprawdź czy jest dodatkowa weryfikacja (username)
+            # check if username is required
             try:
                 self.logger.info("Sprawdzam czy jest dodatkowa weryfikacja...")
                 verification_input = WebDriverWait(self.driver, 8).until(
@@ -144,7 +138,7 @@ class TwitterPoliticalScraper:
             except TimeoutException:
                 self.logger.info("Brak dodatkowej weryfikacji")
 
-            # Wpisz hasło
+            # password input
             self.logger.info("Wprowadzam hasło...")
             try:
                 password_input = WebDriverWait(self.driver, 15).until(
@@ -157,7 +151,7 @@ class TwitterPoliticalScraper:
                 self.logger.error("Nie znaleziono pola hasła")
                 return False
 
-            # Sprawdź czy logowanie się powiodło
+            # check if login was successful
             try:
                 WebDriverWait(self.driver, 20).until(
                     EC.any_of(
@@ -184,7 +178,6 @@ class TwitterPoliticalScraper:
         return target_date
 
     def build_search_query(self, term):
-        """Budowanie zapytania wyszukiwania z filtrami dla konkretnego dnia"""
         # Get target date
         target_date = self.get_target_date()
         next_date = target_date + timedelta(days=1)
@@ -195,11 +188,9 @@ class TwitterPoliticalScraper:
         return query
 
     def search_and_scrape(self, search_term):
-        """Wyszukiwanie i scrapowanie tweetów dla danego terminu z lepszym scrollowaniem"""
         tweets = []
 
         try:
-            # Zbuduj zapytanie
             query = self.build_search_query(search_term)
 
             # Use Latest tab for more results
@@ -211,7 +202,7 @@ class TwitterPoliticalScraper:
             self.driver.get(search_url)
             time.sleep(5)
 
-            # Sprawdź czy strona się załadowała poprawnie
+            # Wait for results to load
             try:
                 WebDriverWait(self.driver, 15).until(
                     EC.any_of(
@@ -224,7 +215,6 @@ class TwitterPoliticalScraper:
                 self.logger.warning(f"Timeout podczas ładowania wyników dla: {search_term}")
                 return tweets
 
-            # Sprawdź czy są jakieś wyniki
             if self.driver.find_elements(By.CSS_SELECTOR, '[data-testid="emptyState"]'):
                 self.logger.info(f"Brak wyników dla: {search_term}")
                 return tweets
@@ -282,9 +272,7 @@ class TwitterPoliticalScraper:
         return tweets
 
     def extract_tweet_data(self, tweet_element, search_term):
-        """Wyciągnij dane z elementu tweeta"""
         try:
-            # Tekst tweeta
             try:
                 text_element = tweet_element.find_element(By.CSS_SELECTOR, '[data-testid="tweetText"]')
                 text = text_element.text.strip()
@@ -295,7 +283,7 @@ class TwitterPoliticalScraper:
             if not text or len(text) < 3:
                 return None
 
-            # Autor
+            # Author name
             try:
                 author_elements = tweet_element.find_elements(By.CSS_SELECTOR, '[data-testid="User-Name"] span')
                 author = author_elements[0].text.strip() if author_elements else "Unknown"
@@ -317,7 +305,7 @@ class TwitterPoliticalScraper:
             except:
                 timestamp = datetime.now().isoformat()
 
-            # Statystyki
+            # Stats
             likes = retweets = replies = 0
             try:
                 stat_buttons = tweet_element.find_elements(By.CSS_SELECTOR, '[role="group"] [role="button"]')
@@ -332,7 +320,7 @@ class TwitterPoliticalScraper:
             except:
                 pass
 
-            # Link do tweeta
+            # URL of the tweet
             try:
                 time_link = tweet_element.find_element(By.CSS_SELECTOR, 'time').find_element(By.XPATH, '..')
                 tweet_url = time_link.get_attribute('href')
@@ -357,7 +345,6 @@ class TwitterPoliticalScraper:
             return None
 
     def extract_number(self, text):
-        """Wyciągnij liczbę z tekstu"""
         import re
         text = text.replace(',', '')
         numbers = re.findall(r'(\d+(?:\.\d+)?)\s*([KkMm]?)', text)
@@ -372,7 +359,6 @@ class TwitterPoliticalScraper:
         return 0
 
     def is_duplicate(self, tweet_data, existing_tweets):
-        """Sprawdź czy tweet już istnieje w liście"""
         for existing in existing_tweets:
             if (existing['text'] == tweet_data['text'] and
                     existing['handle'] == tweet_data['handle']):
@@ -380,7 +366,6 @@ class TwitterPoliticalScraper:
         return False
 
     def save_to_json(self, tweets, target_date):
-        """Zapisz tweety do pliku JSON z nazwą bazującą na dacie skanowania"""
         if not tweets:
             self.logger.warning("Brak tweetów do zapisania")
             return
@@ -394,39 +379,37 @@ class TwitterPoliticalScraper:
         self.logger.info(f"Zapisano {len(tweets)} tweetów do: {filename}")
 
     def run_scraping(self, headless=True):
-        """Główna funkcja scrapowania"""
         all_tweets = []
         target_date = self.get_target_date()
 
         try:
-            # Uruchom przeglądarkę
+            # Run browser setup
             self.setup_driver(headless=headless)
 
-            # Zaloguj się
+            # Login
             if not self.login_to_twitter():
                 self.logger.error("Nie udało się zalogować!")
                 return
 
-            # Przygotuj wszystkie terminy do wyszukiwania
+            # Get all search terms
             all_search_terms = self.political_parties
 
             self.logger.info(
                 f"Rozpoczynam scrapowanie {len(all_search_terms)} terminów dla daty: {target_date.strftime('%Y-%m-%d')}")
 
-            # Scrapuj każdy termin
+            # Scrape tweets for each search term
             for i, term in enumerate(all_search_terms, 1):
                 self.logger.info(f"Progress: {i}/{len(all_search_terms)} - {term}")
 
                 tweets = self.search_and_scrape(term)
                 all_tweets.extend(tweets)
 
-                # Przerwa między wyszukiwaniami
                 if i < len(all_search_terms):
                     wait_time = random.uniform(4, 8)  # Longer delays to avoid rate limiting
                     self.logger.info(f"Czekam {wait_time:.1f}s przed następnym wyszukiwaniem...")
                     time.sleep(wait_time)
 
-            # Usuń duplikaty
+            # Remove duplicates
             unique_tweets = []
             seen = set()
             for tweet in all_tweets:
@@ -435,7 +418,7 @@ class TwitterPoliticalScraper:
                     unique_tweets.append(tweet)
                     seen.add(identifier)
 
-            # Zapisz wyniki
+            # Save results to JSON
             if unique_tweets:
                 self.save_to_json(unique_tweets, target_date)
                 self.logger.info(
@@ -462,11 +445,10 @@ class TwitterPoliticalScraper:
 
 
 def main():
-    """Główna funkcja"""
     scraper = TwitterPoliticalScraper()
 
-    # =================== KONFIGURACJA URUCHOMIENIA ===================
-    HEADLESS_MODE = False  # True = bez okna przeglądarki, False = z oknem
+    # =================== RUN CONFIG ===================
+    HEADLESS_MODE = False  # True = headless mode, False = normal mode (visible browser)
 
     target_date = scraper.get_target_date()
 
@@ -479,7 +461,6 @@ def main():
     print(f"Tryb headless: {HEADLESS_MODE}")
     print("=" * 50)
 
-    # Uruchom scrapowanie
     scraper.run_scraping(headless=HEADLESS_MODE)
 
 
