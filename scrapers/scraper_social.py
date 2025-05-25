@@ -1,6 +1,5 @@
 import re
 import requests
-import time
 import csv
 import os
 from bs4 import BeautifulSoup
@@ -11,8 +10,7 @@ from selenium.webdriver.chrome.options import Options
 from urllib.parse import urlparse
 from dotenv import load_dotenv
 
-load_dotenv("../.env")
-
+load_dotenv()
 youtube_api_key = os.getenv("YOUTUBE_API_KEY")
 
 URLS = {
@@ -52,22 +50,40 @@ URLS = {
         'tiktok': 'https://www.tiktok.com/@__lewica'
     },
 }
+
+# Globalna instancja Selenium
+selenium_driver = None
+
 def get_selenium_driver(wait=3):
     opts = Options()
     opts.add_argument('--headless')
     opts.add_argument('--disable-gpu')
+    opts.add_argument('--disable-software-rasterizer')
+    opts.add_argument('--enable-unsafe-swiftshader')
     opts.add_argument('--no-sandbox')
+    opts.add_argument('--disable-dev-shm-usage')
+    opts.add_argument('--log-level=3')
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=opts)
     driver.implicitly_wait(wait)
     return driver
 
-def get_soup(url, use_selenium=True, wait=3):
+def init_selenium_driver():
+    global selenium_driver
+    if selenium_driver is None:
+        selenium_driver = get_selenium_driver()
+
+def close_selenium_driver():
+    global selenium_driver
+    if selenium_driver is not None:
+        selenium_driver.quit()
+        selenium_driver = None
+
+def get_soup(url, use_selenium=True):
     if use_selenium:
-        driver = get_selenium_driver(wait)
-        driver.get(url)
-        html = driver.page_source
-        driver.quit()
+        global selenium_driver
+        selenium_driver.get(url)
+        html = selenium_driver.page_source
     else:
         resp = requests.get(url)
         resp.raise_for_status()
@@ -115,8 +131,7 @@ def scrape_facebook_followers(url):
     tag = soup.find('a', href=re.compile(r'/followers/'))
     if not tag:
         return None
-    text = tag.get_text().strip().replace('\xa0', ' ')
-    return parse_count(text)
+    return parse_count(tag.get_text())
 
 def scrape_instagram_followers(url):
     if not url:
@@ -130,8 +145,7 @@ def scrape_instagram_followers(url):
     resp = requests.get(api, headers=headers)
     resp.raise_for_status()
     data = resp.json()
-    count = data['data']['user']['edge_followed_by']['count']
-    return int(count)
+    return int(data['data']['user']['edge_followed_by']['count'])
 
 def scrape_youtube_subscribers(url):
     if not url:
@@ -147,19 +161,12 @@ def scrape_youtube_subscribers(url):
     if not items:
         return None
     stats = items[0].get('statistics', {})
-    subscriber_count = stats.get('subscriberCount')
-    if subscriber_count is None:
-        return None
-    return int(subscriber_count)
+    return int(stats.get('subscriberCount')) if stats.get('subscriberCount') else None
 
 def scrape_twitter_followers(url):
     if not url:
         return None
-    driver = get_selenium_driver(wait=5)
-    driver.get(url)
-    time.sleep(5)
-    soup = BeautifulSoup(driver.page_source, 'html.parser')
-    driver.quit()
+    soup = get_soup(url)
     container = soup.find('div', class_='css-175oi2r')
     if not container:
         return None
@@ -183,11 +190,7 @@ def scrape_twitter_followers(url):
 def scrape_tiktok_followers(url):
     if not url:
         return None
-    driver = get_selenium_driver(wait=5)
-    driver.get(url)
-    time.sleep(5)
-    soup = BeautifulSoup(driver.page_source, 'html.parser')
-    driver.quit()
+    soup = get_soup(url)
     strong = soup.find('strong', attrs={'data-e2e': 'followers-count'})
     if not strong:
         return None
@@ -204,42 +207,53 @@ def scrape_tiktok_followers(url):
     return int(number)
 
 def main():
-    output_rows = []
-    portals = ['facebook', 'instagram', 'twitter', 'youtube', 'tiktok']
+    init_selenium_driver()
+    try:
+        output_rows = []
+        portals = ['facebook', 'instagram', 'twitter', 'youtube', 'tiktok']
+        total_portals = len(portals)
 
-    for party, links in URLS.items():
-        for portal in portals:
-            url = links.get(portal)
-            try:
-                if portal == 'facebook':
-                    count = scrape_facebook_followers(url)
-                elif portal == 'instagram':
-                    count = scrape_instagram_followers(url)
-                elif portal == 'twitter':
-                    count = scrape_twitter_followers(url)
-                elif portal == 'youtube':
-                    count = scrape_youtube_subscribers(url)
-                elif portal == 'tiktok':
-                    count = scrape_tiktok_followers(url)
-                else:
+        for i, portal in enumerate(portals, 1):
+            print(f"\n🔎 {i}/{total_portals} — Rozpoczynam scrapowanie portalu: {portal}")
+
+            for party, links in URLS.items():
+                url = links.get(portal)
+                try:
+                    if portal == 'facebook':
+                        count = scrape_facebook_followers(url)
+                    elif portal == 'instagram':
+                        count = scrape_instagram_followers(url)
+                    elif portal == 'twitter':
+                        count = scrape_twitter_followers(url)
+                    elif portal == 'youtube':
+                        count = scrape_youtube_subscribers(url)
+                    elif portal == 'tiktok':
+                        count = scrape_tiktok_followers(url)
+                    else:
+                        count = None
+                except Exception as e:
+                    print(f"❌ Błąd przy {party} {portal}: {e}")
                     count = None
-            except Exception as e:
-                print(f"Błąd przy {party} {portal}: {e}")
-                count = None
-            
-            output_rows.append({
-                'Partia': party,
-                'Portal': portal,
-                'Followers': count if count is not None else 'Brak danych'
-            })
 
-    with open('data/socials/followers3.csv', 'w', newline='', encoding='utf-8') as f:
-        fieldnames = ['Partia', 'Portal', 'Followers']
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(output_rows)
+                output_rows.append({
+                    'Partia': party,
+                    'Portal': portal,
+                    'Followers': count if count is not None else 'Brak danych'
+                })
 
-    print("Zapisano dane do followers.csv")
+                print(f"✅ {party} - {portal} zeskrapowane: {count if count is not None else 'Brak danych'}")
+
+        os.makedirs('data/socials', exist_ok=True)
+        with open('data/socials/followers3.csv', 'w', newline='', encoding='utf-8') as f:
+            fieldnames = ['Partia', 'Portal', 'Followers']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(output_rows)
+
+        print("\n🎉 Zakończono scrapowanie wszystkich portali i zapisano dane do followers3.csv")
+
+    finally:
+        close_selenium_driver()
 
 if __name__ == '__main__':
     main()
