@@ -23,16 +23,15 @@ class TwitterPoliticalScraper:
 
         # ======================= SCRAPER CONFIG ====================
         # Set this to scan a specific number of days ago (0 = yesterday, 1 = day before yesterday, etc.)
-        self.DAYS_AGO = 0  # Change this to debug different days (0=yesterday, 1=2 days ago, etc.)
-        self.MAX_TWEETS_PER_SEARCH = 50
-        self.MAX_SCROLL_ATTEMPTS = 10
-        self.SCROLL_PAUSE_TIME = 3
+        self.DAYS_AGO = 1  # Change this to debug different days (0=yesterday, 1=2 days ago, etc.)
+        self.MAX_TWEETS_PER_SEARCH = 200
+        self.MAX_SCROLL_ATTEMPTS = 15
+        self.SCROLL_PAUSE_TIME = 5
 
         # ======================== TAGS ==========================
         self.political_parties = [
             "PiS",
             "Prawo i Sprawiedliwość",
-            "PO",
             "Platforma Obywatelska",
             "KO",
             "Koalicja Obywatelska",
@@ -42,7 +41,7 @@ class TwitterPoliticalScraper:
             "Polskie Stronnictwo Ludowe",
             "Polska 2050",
             "Trzecia Droga",
-            "Razem",
+            "Partia Razem",
         ]
 
         self.driver = None
@@ -99,7 +98,7 @@ class TwitterPoliticalScraper:
             self.logger.info("Rozpoczynam logowanie do Twittera...")
 
             self.driver.get("https://twitter.com/i/flow/login?lang=en")
-            time.sleep(5)
+            time.sleep(10)
 
             # check if the page loaded correctly
             try:
@@ -200,7 +199,7 @@ class TwitterPoliticalScraper:
             self.logger.info(f"Query: {query}")
 
             self.driver.get(search_url)
-            time.sleep(5)
+            time.sleep(15)
 
             # Wait for results to load
             try:

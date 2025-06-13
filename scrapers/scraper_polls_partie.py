@@ -4,6 +4,10 @@ from bs4 import BeautifulSoup
 from io import StringIO
 import os
 import re
+import urllib3
+
+# Disable SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def parse_poll_row(text):
     # Publikator
@@ -35,7 +39,10 @@ def parse_poll_row(text):
 
 def scrape_poll_data(url: str, output_file: str):
     print(f"Pobieranie danych z: {url}")
-    response = requests.get(url)
+
+    # Add headers and disable SSL verification
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    response = requests.get(url, headers=headers, verify=False)
     response.raise_for_status()
 
     soup = BeautifulSoup(response.content, 'html.parser')
@@ -86,5 +93,5 @@ def scrape_poll_data(url: str, output_file: str):
 
 if __name__ == "__main__":
     URL = "https://ewybory.eu/sondaze/"
-    OUTPUT = "./data/pools/polls_data.csv"
+    OUTPUT = "./data/polls/polls_data.csv"  # Fixed typo: pools -> polls
     scrape_poll_data(URL, OUTPUT)
